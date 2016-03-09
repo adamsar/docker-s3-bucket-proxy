@@ -1,0 +1,60 @@
+##
+##  This nginx.conf servers as the main config file for webflow reverse proxy
+##
+##  RCS:
+##  https://gist.github.com/sansmischevia/5617402
+##
+##  Hardening tips:
+##  http://www.cyberciti.biz/tips/linux-unix-bsd-nginx-webserver-security.html
+##
+
+#user  nobody;
+worker_processes  1;
+worker_rlimit_nofile 10480;
+
+events {
+    worker_connections  1024;
+}
+
+http {
+    include       mime.types;
+    default_type  text/html;
+
+    ## Start: Size Limits & Buffer Overflows ##
+    client_body_buffer_size  1k;
+    client_header_buffer_size 1k;
+    client_max_body_size 1k;
+    large_client_header_buffers 2 1k;
+     ## END: Size Limits & Buffer Overflows ##
+
+    sendfile        on;
+    #tcp_nopush     on;
+
+    # keepalive_timeout  0;
+    keepalive_timeout  65;
+
+    gzip  on;
+    # index index.html;
+
+
+    # Custom domain directive, catches everything!!!
+    server {
+        listen                 80;
+        server_name            _; # Respond to all domains here.
+        resolver               8.8.8.8;
+
+        location / {
+           # avoid passing along amazon headers
+           # http://docs.aws.amazon.com/AmazonS3/latest/API/RESTCommonResponseHeaders.html
+           proxy_hide_header x-amz-delete-marker;
+           proxy_hide_header x-amz-id-2;
+           proxy_hide_header x-amz-request-id;
+           proxy_hide_header x-amz-version-id;
+
+           # only rely on last-modified (which will never change)
+           proxy_hide_header etag;
+
+           proxy_pass             http://$S3_BUCKET.s3.amazonaws.com<1>;
+        }
+    }
+}
